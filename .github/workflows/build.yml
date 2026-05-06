@@ -8,7 +8,10 @@ on:
 
 jobs:
   build:
-    runs-on: macos-14
+    # macos-15 ships Xcode 16+ which is broadly compatible with the
+    # XcodeGen-produced .xcodeproj. Older runners (macos-14) ship
+    # Xcode 15 which can't read newer project formats.
+    runs-on: macos-15
     timeout-minutes: 60
 
     steps:
@@ -17,53 +20,25 @@ jobs:
       - name: Install build tools
         run: |
           brew install xcodegen xcbeautify
+          brew install ghostscript
 
-      - name: Cache Ghostscript universal binary
-        id: gs-cache
-        uses: actions/cache@v4
-        with:
-          path: ghostscript/universal
-          key: gs-universal-${{ hashFiles('ghostscript/build-*.sh', 'ghostscript/fetch-source.sh') }}-v1
-
-      - name: Build Ghostscript (cache miss)
-        if: steps.gs-cache.outputs.cache-hit != 'true'
-        run: bash ghostscript/build-universal.sh
-
-      - name: Generate Xcode project
-        run: xcodegen generate
-
-      - name: xcodebuild Release
-        run: |
-          set -o pipefail
-          xcodebuild \
-            -project EPSViewer.xcodeproj \
-            -scheme EPSViewer \
-            -configuration Release \
-            -derivedDataPath build/ \
-            CODE_SIGN_IDENTITY="-" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO \
-            build | xcbeautify
-
-      - name: Ad-hoc sign
-        run: bash scripts/adhoc-sign.sh build/Build/Products/Release/EPSViewer.app
-
-      - name: Verify bundle
-        run: bash scripts/verify-bundle.sh build/Build/Products/Release/EPSViewer.app
-
-      - name: Package DMG
-        run: bash scripts/package-dmg.sh build/Build/Products/Release/EPSViewer.app
+      - name: Build app via build-app.sh
+        run: bash scripts/build-app.sh
+        env:
+          # Skip the interactive prompt at the end — we don't need the
+          # install instructions in CI logs.
+          CI: 'true'
 
       - name: Upload DMG artifact
         uses: actions/upload-artifact@v4
         with:
-          name: EPSViewer-${{ github.sha }}
-          path: out/EPSViewer-*.dmg
+          name: EPS-View-Plus-${{ github.sha }}
+          path: out/EPS-View-Plus-*.dmg
           retention-days: 30
 
       - name: Upload app artifact
         uses: actions/upload-artifact@v4
         with:
-          name: EPSViewer-app-${{ github.sha }}
-          path: build/Build/Products/Release/EPSViewer.app
+          name: EPS-View-Plus-app-${{ github.sha }}
+          path: build/Build/Products/Release/EPS View+.app
           retention-days: 7
