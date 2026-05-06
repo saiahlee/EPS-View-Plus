@@ -1,0 +1,69 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          brew install xcodegen xcbeautify
+
+      - name: Cache Ghostscript universal binary
+        id: gs-cache
+        uses: actions/cache@v4
+        with:
+          path: ghostscript/universal
+          key: gs-universal-${{ hashFiles('ghostscript/build-*.sh', 'ghostscript/fetch-source.sh') }}-v1
+
+      - name: Build Ghostscript (cache miss)
+        if: steps.gs-cache.outputs.cache-hit != 'true'
+        run: bash ghostscript/build-universal.sh
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: xcodebuild Release
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project EPSViewer.xcodeproj \
+            -scheme EPSViewer \
+            -configuration Release \
+            -derivedDataPath build/ \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            build | xcbeautify
+
+      - name: Ad-hoc sign
+        run: bash scripts/adhoc-sign.sh build/Build/Products/Release/EPSViewer.app
+
+      - name: Verify bundle
+        run: bash scripts/verify-bundle.sh build/Build/Products/Release/EPSViewer.app
+
+      - name: Package DMG
+        run: bash scripts/package-dmg.sh build/Build/Products/Release/EPSViewer.app
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: EPSViewer-${{ github.sha }}
+          path: out/EPSViewer-*.dmg
+          retention-days: 30
+
+      - name: Upload app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: EPSViewer-app-${{ github.sha }}
+          path: build/Build/Products/Release/EPSViewer.app
+          retention-days: 7

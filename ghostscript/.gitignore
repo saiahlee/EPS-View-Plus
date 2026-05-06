@@ -1,0 +1,8 @@
+# Ghostscript source tarball + extracted source (large, regenerable)
+ghostscript-*.tar.gz
+src/
+
+# Per-arch and universal build outputs
+install-arm64/
+install-x86_64/
+universal/

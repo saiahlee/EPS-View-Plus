@@ -1,0 +1,90 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: macos-14
+    timeout-minutes: 60
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: brew install xcodegen xcbeautify
+
+      - name: Cache Ghostscript
+        id: gs-cache
+        uses: actions/cache@v4
+        with:
+          path: ghostscript/universal
+          key: gs-universal-${{ hashFiles('ghostscript/build-*.sh', 'ghostscript/fetch-source.sh') }}-v1
+
+      - name: Build Ghostscript
+        if: steps.gs-cache.outputs.cache-hit != 'true'
+        run: bash ghostscript/build-universal.sh
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: xcodebuild Release
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project EPSViewer.xcodeproj \
+            -scheme EPSViewer \
+            -configuration Release \
+            -derivedDataPath build/ \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            build | xcbeautify
+
+      - name: Ad-hoc sign
+        run: bash scripts/adhoc-sign.sh build/Build/Products/Release/EPSViewer.app
+
+      - name: Package DMG
+        run: |
+          export VERSION="${GITHUB_REF_NAME#v}"
+          bash scripts/package-dmg.sh build/Build/Products/Release/EPSViewer.app
+
+      - name: Source archive
+        run: |
+          export VERSION="${GITHUB_REF_NAME#v}"
+          mkdir -p out
+          git archive --format tar.gz --prefix "EPSViewer-${VERSION}/" -o "out/EPSViewer-Source-${VERSION}.tar.gz" HEAD
+
+      - name: Compute SHA256
+        run: |
+          cd out
+          shasum -a 256 *.dmg *.tar.gz > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            out/EPSViewer-*.dmg
+            out/EPSViewer-Source-*.tar.gz
+            out/SHA256SUMS.txt
+          body: |
+            ## EPS Viewer ${{ github.ref_name }}
+
+            **First-launch instructions** (one-time):
+
+            Right-click EPSViewer.app → Open → Open in the dialog. macOS remembers your choice for next time.
+
+            Or, from Terminal:
+            ```bash
+            xattr -dr com.apple.quarantine /Applications/EPSViewer.app
+            ```
+
+            **Why this prompt appears**: EPS Viewer is open-source and ad-hoc signed (no Apple Developer ID). The DMG's SHA256 is in `SHA256SUMS.txt` — verify before opening.
+
+            **Source**: `EPSViewer-Source-*.tar.gz` corresponds exactly to this binary.
