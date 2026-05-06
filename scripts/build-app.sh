@@ -23,10 +23,19 @@ else
 fi
 
 echo
-echo "── (1.5/5) Building AppIcon.icns from icon.png ──"
-ICON_SRC="$REPO_ROOT/../icon.png"
+echo "── (1.5/5) Building AppIcon.icns from AppIcon.png ──"
+# Prefer the in-repo icon at EPSViewer/AppIcon.png so anyone cloning the
+# repository can reproduce the app icon. Fall back to the legacy
+# out-of-repo location for backwards compatibility.
+if [ -f "$REPO_ROOT/EPSViewer/AppIcon.png" ]; then
+  ICON_SRC="$REPO_ROOT/EPSViewer/AppIcon.png"
+elif [ -f "$REPO_ROOT/../icon.png" ]; then
+  ICON_SRC="$REPO_ROOT/../icon.png"
+else
+  ICON_SRC=""
+fi
 ICON_DST="$REPO_ROOT/EPSViewer/AppIcon.icns"
-if [ -f "$ICON_SRC" ]; then
+if [ -n "$ICON_SRC" ] && [ -f "$ICON_SRC" ]; then
   ICONSET="$(mktemp -d)/AppIcon.iconset"
   mkdir -p "$ICONSET"
   # Apple expects these specific sizes inside an .iconset directory.

@@ -29,8 +29,8 @@ ghostscript/universal/
 out/
 *.dmg
 
-# Internal strategy docs (not for public repo)
-eps_viewer_strategy_*.md
+# Generated app icon (built by scripts/build-app.sh from EPSViewer/AppIcon.png)
+EPSViewer/AppIcon.icns
 
 # Internal strategy docs (not for public repo)
 eps_viewer_strategy_*.md
