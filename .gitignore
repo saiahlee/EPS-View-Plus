@@ -28,3 +28,6 @@ ghostscript/universal/
 # Distribution artifacts
 out/
 *.dmg
+
+# Internal strategy docs (not for public repo)
+eps_viewer_strategy_*.md
